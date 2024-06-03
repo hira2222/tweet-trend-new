@@ -14,7 +14,13 @@ environment {
                 sh 'mvn clean deploy'
             }
         }
-
+        stage('test') {
+            steps {
+                echo "----unit test started-----"
+                sh 'mvn clean deploy -Dmaven.test.skip=true'
+                echo "----unit test completed-----"
+            }
+        }
         stage('SonarQube analysis') {
         environment {
             scannerHome = tool 'sonar-scanner'
