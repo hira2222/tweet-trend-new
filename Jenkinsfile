@@ -1,3 +1,4 @@
+def registry = 'https://pipeline02.jfrog.io'
 pipeline{
     agent {
         node {
@@ -24,28 +25,53 @@ environment {
                 echo "----unit test completed-----"
             }
         }
-        stage('SonarQube analysis') {
-        environment {
-            scannerHome = tool 'pipeline-sonar-scannner'
-        }
-        steps {
-        withSonarQubeEnv('pipeline-sonarqube-server') {
-            sh "${scannerHome}/bin/sonar-scanner"
-        }
-        }
-        }
-        // No need to occupy a node
-        stage("Quality Gate"){
+        // stage('SonarQube analysis') {
+        // environment {
+        //     scannerHome = tool 'pipeline-sonar-scannner'
+        // }
+        // steps {
+        // withSonarQubeEnv('pipeline-sonarqube-server') {
+        //     sh "${scannerHome}/bin/sonar-scanner"
+        // }
+        // }
+        // }
+        // // No need to occupy a node
+        // stage("Quality Gate"){
+        //     steps {
+        //         script {
+        //             timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
+        //             def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv
+        //             if (qg.status != 'OK') {
+        //                 error "Pipeline aborted due to quality gate failure: ${qg.status}"
+        //             }
+        //         }
+        //         }
+        //     }
+        // }
+         stage("Jar Publish") {
             steps {
                 script {
-                    timeout(time: 1, unit: 'HOURS') { // Just in case something goes wrong, pipeline will be killed after a timeout
-                    def qg = waitForQualityGate() // Reuse taskId previously collected by withSonarQubeEnv
-                    if (qg.status != 'OK') {
-                        error "Pipeline aborted due to quality gate failure: ${qg.status}"
-                    }
+                        echo '<--------------- Jar Publish Started --------------->'
+                         def server = Artifactory.newServer url:registry+"/artifactory" ,  credentialsId:"artifact-cred"
+                         def properties = "buildid=${env.BUILD_ID},commitid=${GIT_COMMIT}";
+                         def uploadSpec = """{
+                              "files": [
+                                {
+                                  "pattern": "jarstaging/(*)",
+                                  "target": "maven-2-default-libs-release-local/{1}",
+                                  "flat": "false",
+                                  "props" : "${properties}",
+                                  "exclusions": [ "*.sha1", "*.md5"]
+                                }
+                             ]
+                         }"""
+                         def buildInfo = server.upload(uploadSpec)
+                         buildInfo.env.collect()
+                         server.publishBuildInfo(buildInfo)
+                         echo '<--------------- Jar Publish Ended --------------->'  
+                
                 }
-                }
-            }
-        }
+            }   
+        }    
     }
 }
